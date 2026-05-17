@@ -48,10 +48,9 @@ def wechat_message():
         print(f"[MSG] type={msg['type']} from={from_user[:20]}", file=sys.stderr)
 
         if msg["type"] == "text":
-            print(f"[MSG] calling DeepSeek...", file=sys.stderr)
-            ai_reply = deepseek_chat(msg["content"], DEEPSEEK_API_KEY)
-            print(f"[MSG] AI reply len={len(ai_reply)}", file=sys.stderr)
-            return xml_response(build_text_reply(from_user, to_user, ai_reply))
+            # 临时：先不调 AI，直接返回固定回复排查是否是超时问题
+            reply = f"收到：{msg['content'][:50]}\n\n（测试模式：微信消息已送达服务器）"
+            return xml_response(build_text_reply(from_user, to_user, reply))
 
         elif msg["type"] == "event":
             event = msg.get("event", "")
