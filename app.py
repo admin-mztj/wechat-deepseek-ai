@@ -1,6 +1,7 @@
 import os
+import sys
 
-from flask import Flask, request
+from flask import Flask, request, Response
 from dotenv import load_dotenv
 
 from wechat import verify_signature, parse_message, build_text_reply
@@ -14,12 +15,18 @@ DEEPSEEK_API_KEY = os.getenv("DEEPSEEK_API_KEY", "")
 app = Flask(__name__)
 
 
+def xml_response(xml_str):
+    return Response(xml_str, content_type="application/xml; charset=utf-8")
+
+
 @app.route("/wechat", methods=["GET"])
 def wechat_verify():
     signature = request.args.get("signature", "")
     timestamp = request.args.get("timestamp", "")
     nonce = request.args.get("nonce", "")
     echostr = request.args.get("echostr", "")
+
+    print(f"[VERIFY] sig={signature[:10]}... ts={timestamp}", file=sys.stderr)
 
     if verify_signature(WECHAT_TOKEN, signature, timestamp, nonce):
         return echostr
@@ -28,32 +35,41 @@ def wechat_verify():
 
 @app.route("/wechat", methods=["POST"])
 def wechat_message():
+    xml_data = request.data
+    print(f"[MSG] body={xml_data.decode('utf-8', errors='replace')[:300]}", file=sys.stderr)
+
     try:
-        xml_data = request.data
         msg = parse_message(xml_data)
+        print(f"[MSG] type={msg['type']} from={msg['from_user'][:20]}", file=sys.stderr)
 
         if msg["type"] == "text":
+            print(f"[MSG] calling DeepSeek...", file=sys.stderr)
             ai_reply = deepseek_chat(msg["content"], DEEPSEEK_API_KEY)
-            return build_text_reply(msg["from_user"], msg["to_user"], ai_reply)
+            print(f"[MSG] AI reply len={len(ai_reply)}", file=sys.stderr)
+            return xml_response(build_text_reply(msg["from_user"], msg["to_user"], ai_reply))
 
         elif msg["type"] == "event":
             event = msg.get("event", "")
+            print(f"[MSG] event={event}", file=sys.stderr)
             if event == "subscribe":
-                reply = "欢迎关注！我是 AI 助手 🤖\n\n直接发消息就可以和我聊天，无论是提问、翻译、写作还是闲聊，我都能帮你。\n\n现在就开始吧～"
-                return build_text_reply(msg["from_user"], msg["to_user"], reply)
+                reply = "欢迎关注！我是 AI 助手 🤖\n\n直接发消息就可以和我聊天。\n\n现在就开始吧～"
+                return xml_response(build_text_reply(msg["from_user"], msg["to_user"], reply))
             elif event == "CLICK":
                 reply = deepseek_chat(msg.get("event_key", ""), DEEPSEEK_API_KEY)
-                return build_text_reply(msg["from_user"], msg["to_user"], reply)
+                return xml_response(build_text_reply(msg["from_user"], msg["to_user"], reply))
 
         return "success"
 
     except Exception as e:
-        return f"<xml><ToUserName><![CDATA[]]></ToUserName><FromUserName><![CDATA[]]></FromUserName><CreateTime>0</CreateTime><MsgType><![CDATA[text]]></MsgType><Content><![CDATA[服务异常：{str(e)[:100]}]]></Content></xml>"
+        print(f"[MSG] ERROR: {e}", file=sys.stderr)
+        import traceback
+        traceback.print_exc(file=sys.stderr)
+        return "success"
 
 
 @app.route("/test", methods=["GET"])
 def test_api():
-    msg = request.args.get("msg", "你好，用一句话介绍你自己")
+    msg = request.args.get("msg", "你好")
     try:
         reply = deepseek_chat(msg, DEEPSEEK_API_KEY)
         return f"DeepSeek OK: {reply}"

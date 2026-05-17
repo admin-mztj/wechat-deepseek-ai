@@ -1,10 +1,8 @@
 import requests
 
 API_URL = "https://api.deepseek.com/v1/chat/completions"
-TIMEOUT = 3.0
-MAX_TOKENS = 200
-
-SYSTEM_PROMPT = "你是微信 AI 助手，用中文回复，简洁友好，不超过 100 字。"
+TIMEOUT = 2.0
+MAX_TOKENS = 150
 
 FALLBACK_REPLY = "抱歉，AI 还没准备好，请再发一次试试～"
 
@@ -18,7 +16,6 @@ def chat(user_message, api_key):
     payload = {
         "model": "deepseek-chat",
         "messages": [
-            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": user_message},
         ],
         "max_tokens": MAX_TOKENS,
