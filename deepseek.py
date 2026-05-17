@@ -16,6 +16,7 @@ def chat(user_message, api_key):
     payload = {
         "model": "deepseek-chat",
         "messages": [
+            {"role": "system", "content": "用中文回复，简洁友好。"},
             {"role": "user", "content": user_message},
         ],
         "max_tokens": MAX_TOKENS,
