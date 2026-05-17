@@ -38,33 +38,49 @@ def wechat_message():
     xml_data = request.data
     print(f"[MSG] body={xml_data.decode('utf-8', errors='replace')[:300]}", file=sys.stderr)
 
+    from_user = ""
+    to_user = ""
+
     try:
         msg = parse_message(xml_data)
-        print(f"[MSG] type={msg['type']} from={msg['from_user'][:20]}", file=sys.stderr)
+        from_user = msg["from_user"]
+        to_user = msg["to_user"]
+        print(f"[MSG] type={msg['type']} from={from_user[:20]}", file=sys.stderr)
 
         if msg["type"] == "text":
             print(f"[MSG] calling DeepSeek...", file=sys.stderr)
             ai_reply = deepseek_chat(msg["content"], DEEPSEEK_API_KEY)
             print(f"[MSG] AI reply len={len(ai_reply)}", file=sys.stderr)
-            return xml_response(build_text_reply(msg["from_user"], msg["to_user"], ai_reply))
+            return xml_response(build_text_reply(from_user, to_user, ai_reply))
 
         elif msg["type"] == "event":
             event = msg.get("event", "")
             print(f"[MSG] event={event}", file=sys.stderr)
             if event == "subscribe":
                 reply = "欢迎关注！我是 AI 助手 🤖\n\n直接发消息就可以和我聊天。\n\n现在就开始吧～"
-                return xml_response(build_text_reply(msg["from_user"], msg["to_user"], reply))
+                return xml_response(build_text_reply(from_user, to_user, reply))
             elif event == "CLICK":
                 reply = deepseek_chat(msg.get("event_key", ""), DEEPSEEK_API_KEY)
-                return xml_response(build_text_reply(msg["from_user"], msg["to_user"], reply))
+                return xml_response(build_text_reply(from_user, to_user, reply))
 
-        return "success"
+        return xml_response(build_text_reply(from_user, to_user, "暂不支持此消息类型"))
 
     except Exception as e:
-        print(f"[MSG] ERROR: {e}", file=sys.stderr)
         import traceback
-        traceback.print_exc(file=sys.stderr)
-        return "success"
+        err = traceback.format_exc()
+        print(f"[MSG] ERROR: {err}", file=sys.stderr)
+        return xml_response(build_text_reply(from_user, to_user, f"系统错误：{str(e)[:80]}"))
+
+
+@app.route("/debug", methods=["GET", "POST"])
+def debug_info():
+    return {
+        "method": request.method,
+        "content_type": request.content_type,
+        "body": request.data.decode("utf-8", errors="replace")[:500],
+        "args": dict(request.args),
+        "headers": dict(request.headers),
+    }
 
 
 @app.route("/test", methods=["GET"])
